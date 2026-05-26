@@ -1,0 +1,89 @@
+---
+title: "Laporan Case Method 1 SIM"
+author: "Joeya Azzahra Putri Samwa"
+date: "2026-05-23"
+output:
+ prettydoc::html_pretty:
+    theme: leonids
+    toc: yes
+---
+
+```{r, warning=FALSE, message=FALSE} 
+#Memuat paket yang diperlukan
+library(DBI) 
+library(ggplot2) 
+library(odbc)
+``` 
+
+```{r koneksidata}
+#Melakukan koneksi data
+con <- DBI::dbConnect(odbc::odbc(), 
+                      Driver    = "MySQL ODBC 8.0 ANSI Driver",  
+                      Server    = "127.0.0.1", 
+                      Database  = "sakila", 
+                      UID       = "root", 
+                      PWD       = "191006mysql", 
+                      Port      = 3306) 
+ 
+``` 
+<h1 style="color: darkblue; text-align: left;">VISUALISASI DATA</h1>
+<h2>Insight: Perbandingan Rata-rata Durasi antara Film Kategori Action dengan Horror</h2>
+<p style="text-align: justify">Insight ini bertujuan untuk mengetahui perbandingan rata-rata durasi antara film yang termasuk dalam kategori _Action_ dengan film yang termasuk kategori _Horror_.</p>
+
+```{r}
+#Mendapatkan data yang diperlukan
+data1=dbGetQuery(con,"select f.title, c.name as category, f.length from film f
+join film_category fc on f.film_id=fc.film_id
+join category c on fc.category_id=c.category_id
+where c.name in ( 'Action', 'Horror')")
+
+print(data1)
+
+#Menghitung mean durasi film berdasarkan category
+meancategory=aggregate(length ~ category,data=data1, FUN=mean)
+
+#Menampilkan hasil
+print(meancategory)
+```
+
+```{r}
+#Visualisasi dengan boxplot
+boxplot(length ~ category,data=data1,
+        main="Perbandingan Durasi: Action vs Horror",
+        xlab="Kategori Film",
+        ylab="Durasi (Menit)",
+        col=c("tomato", "darkgrey"),
+        border="black",
+        pch=19)
+```
+<p style="text-align: justify">Garis hitam tebal pada kotak menunjukkan adanya perbedaan median antara film Action dengan film Horror. Film Action memiliki median yang sedikit lebih rendah daripada film Horror.</p>
+<p style="text-align: justify">Kotak warna merah mununjukkan bahwa durasi film berkategori Action lebih beragam, sedangkan film berkategori Horror dengan kotak warna abu-abu memiliki sebaran durasi yang lebih rapat. Film Horror cenderung memiliki durasi yang lebih terpusat.</p>
+<p style="text-align: justify">Hasil visualisasi tersebut tidak menunjukkan adanya outlier. Artinya, tidak ada film Action atau Horror yang memiliki durasi tidak wajar (terlalu pendek atau panjang).</p>
+
+<h1 style="color: darkblue; text-align: left;">ANALISIS DATA</h1>
+<h2>Analisis Perbedaan Rata-rata Jumlah Sewa pada Hari Kerja (Weekday) dan Akhir Pekan (Weekend)</h2>
+$$H_0: \mu_{weekday} = \mu_{weekend}$$
+$$H_1: \mu_{weekday} \neq \mu_{weekend}$$
+```{r, warning=FALSE, message=FALSE}
+#Mendapatkan data yang diinginkan
+datarental=dbGetQuery(con,"SELECT rental_id, rental_date FROM rental")
+
+datarental$rental_date=as.Date(datarental$rental_date)
+
+#Memberi label hari
+datarental$hari=weekdays(datarental$rental_date)
+datarental$tipe_hari=ifelse(datarental$hari%in%c("Saturday","Sunday"),"Weekend","Weekday")
+
+#Menghitung jumlah sewa per tanggal
+library(dplyr)
+ringkasan_sewa=datarental%>%
+  group_by(rental_date,tipe_hari)%>%
+  summarise(jumlahsewa=n(),.groups='drop')
+
+#Uji T Dua Sampel Independen
+t_test_volume=t.test(jumlahsewa~tipe_hari,data=ringkasan_sewa)
+print(t_test_volume)
+```
+<p style="text-align: justify">Berdasarkan hasil uji Welch Two Sample t-test, diperoleh nilai p-value sebesar 0,2164 yang lebih besar dari $\alpha = 0,05$. Hal ini berarti $H_0$ gagal ditolak. Meskipun rata-rata jumlah penyewaan pada akhir pekan (463,10) lebih tinggi dibandingkan hari kerja (368,16), perbedaan tersebut belum cukup signifikan. Sehingga dapat disimpulkan bahwa rata-rata jumlah penyewaan relatif sama, baik pada hari kerja maupun akhir pekan.</p>
+
+ 
